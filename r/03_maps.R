@@ -4,7 +4,6 @@
 
 # Create Maps ------------------------------------------------------------------
 
-
 map_england <- map_data_england %>%
   ggplot() + 
   geom_polygon(aes(x = long, y = lat, group = group, fill = total_cases), 

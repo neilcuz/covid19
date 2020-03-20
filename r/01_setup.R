@@ -15,8 +15,7 @@ library(rvest)
 library(magrittr)
 
 wd <- list()
-wd$wd <- paste0(here::here(), "/")
+wd$wd <- here::here() %>% paste0("/")
 wd$data <- paste0(wd$wd, "data/")
 wd$output <- paste0(wd$wd, "output/")
-wd$output_data <- paste0(wd$output, "data/")
-wd$output_maps <- paste0(wd$output, "maps/")
+
