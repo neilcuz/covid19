@@ -22,8 +22,13 @@ scotland_latest <- "https://www.gov.scot/coronavirus-covid-19" %>%
   select(-positive_cases)
 
 # Scrape Wales data from 
-# https://phw.nhs.wales/news/public-health-wales-statement-on-novel-coronavirus-outbreak/
 
+wales_latest <- "https://phw.nhs.wales/news/public-health-wales-statement-on-novel-coronavirus-outbreak/" %>%
+  read_html() %>%
+  html_node(xpath = '//*[@id="news"]/div[8]/div[2]/div/section/div[1]/div/div/table') %>%
+  html_table(header = TRUE) %>%
+  as_tibble() %>%
+  clean_names() 
 
 
 # Shape files for each geographic breakdown. England data is reported at the 
@@ -62,14 +67,15 @@ cumulative_cases_wales <- wd$output %>%
 # Append
 
 total_cases_col <- "total_cases_" %>%
-  paste0(Sys.Date()) %>%
-  str_replace_all("-", "_")
+   paste0(Sys.Date()) %>%
+   str_replace_all("-", "_")
 
 if(!(total_cases_col %in% colnames(cumulative_cases_england))){
   
   # Hackney and City of London cases reported together but separate areas and
   # Cornwall and Isles of Scilly reported together. Just duplicate the London
-  # ones and we will add a note to the maps and change the other to Cornwall
+  # ones and we will add a note to the maps and change the other to just 
+  # Cornwall and add a note
   
   england_latest_without_hackney_and_city_of_london <- england_latest %>%
     filter(!str_detect(gss_nm, "Hackney"))
@@ -87,37 +93,106 @@ if(!(total_cases_col %in% colnames(cumulative_cases_england))){
 }
 
 
+
 if(!(total_cases_col %in% colnames(cumulative_cases_scotland))){
   
   # Formatting on Ayrshire and Arran funny so force it to be consistent with
   # shape file.
   
   cumulative_cases_scotland <- scotland_latest %>%
+    mutate(health_board = if_else(str_detect(health_board, "Ayr"), 
+                                  "Ayrshire and Arran", health_board)) %>%
     set_colnames(c("health_board", total_cases_col)) %>%
     left_join(cumulative_cases_scotland, ., by = "health_board")
 }
 
 if(!(total_cases_col %in% colnames(cumulative_cases_wales))){
+  
+  # Wales data broken down by hospital now so a little cleaning required to get
+  # it by health board
+  
+  health_boards <- wales_latest %>%
+    filter(health_board != "") %>%
+    select(health_board) %>%
+    unlist()
+
+  health_board_positions <- which(wales_latest$health_board %in% health_boards)
+  
+  for(i in seq_along(1:length(health_boards))){
+    
+    wales_latest <- wales_latest %>%
+      mutate(health_board = if_else(row_number() >= health_board_positions[i],
+                                    health_boards[i], health_board))
+    
+  }
+  
   cumulative_cases_wales <- wales_latest %>%
+    group_by(health_board) %>%
+    summarise(total_cases = sum(cumulative_cases, na.rm = TRUE)) %>%
+    filter(!(total_cases %in% c("Resident outside Wales", "To be confirmed", 
+                                "Wales"))) %>%
+    mutate(total_cases = as.numeric(total_cases)) %>%
     set_colnames(c("health_board", total_cases_col)) %>%
     left_join(cumulative_cases_wales, ., by = "health_board")
 }
 
-write_csv(scotland_latest, paste0(wd$output, "hello.csv"))
-xx <- tibble(shape_file_london$NAME, shape_file_london$GSS_CODE)
+
+# Check that the data have been updated. They update at different times of day
+# I have found so could be yesterdays data.
+
+difference_in_cases <- function(x){
+  x %>%
+    select((ncol(x) -1):ncol(x)) %>%
+    set_colnames(c("yesterday", "today")) %>%
+    mutate(difference = today - yesterday) %>%
+    filter(difference != 0) %>%
+    nrow()
+}
+
+update_cases <- function(x, force_update, country){
+  
+  if(difference_in_cases(x) == 0){
+    warning(paste0("No new cases in ", country))
+    
+    if(force_update == FALSE){
+      warning("force_update = FALSE, discarding todays data")
+      
+      x <- x %>%
+        select(-ncol(x))
+        
+    } else {
+      warning("force_update = TRUE, keeping todays data")
+    }
+    
+  } else {
+    message(paste0("New cases found in ", country))
+  }
+  
+  return(x)
+}
 
 
+cumulative_cases_england <- update_cases(cumulative_cases_england, 
+                                         force_update_england,
+                                         "England")
 
-# Output
-# City of London - investigate (Hackney and City of London?)
-# Isles of Scilly - remove
+cumulative_cases_scotland <- update_cases(cumulative_cases_scotland, 
+                                          force_update_scotland, "Scotland")
 
+cumulative_cases_wales <- update_cases(cumulative_cases_wales, 
+                                       force_update_wales, "Wales")
 
-wd$output_data %>%
+# Output to keep a case record
+
+wd$output %>%
+  paste0("cumulative-cases-wales.csv") %>%
+  write_csv(cumulative_cases_england, .)
+
+wd$output %>%
   paste0("cumulative-cases-england.csv") %>%
   write_csv(cumulative_cases_england, .)
 
-wd$output_data %>%
+wd$output %>%
   paste0("cumulative-cases-scotland.csv") %>%
   write_csv(cumulative_cases_scotland, .)
 
@@ -140,21 +215,6 @@ map_data_scotland <- shape_file_scotland %>%
   broom::tidy(region= "HBName") %>%
   dplyr::left_join(cumulative_cases_latest, by = c("id" = "health_board")) 
 
-
-xx <- tibble(shape_file_london$NAME)
-# 
-# 
-# england <- "https://www.arcgis.com/sharing/rest/content/items/b684319181f94875a6879bbc833ca3a6/data" %>%
-#   read_csv() %>%
-#   clean_names()
-# 
-# wd$output_data %>% list.files(full.names = T)
-# 
-# england_previous <- read_rds("C:/Users/neil_/Desktop/Files/r/covid19/output/data/england_2020-03-17.rds")
-# england_previous <- rename(england_previous, id = gss_cd, area = gss_nm, 
-#                            cumulative_cases = total_cases) %>%
-#   mutate(new_cases = )
-# 
 
 
 
