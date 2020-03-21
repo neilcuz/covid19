@@ -186,7 +186,7 @@ cumulative_cases_wales <- update_cases(cumulative_cases_wales,
 
 wd$output %>%
   paste0("cumulative-cases-wales.csv") %>%
-  write_csv(cumulative_cases_england, .)
+  write_csv(cumulative_cases_wales, .)
 
 wd$output %>%
   paste0("cumulative-cases-england.csv") %>%
