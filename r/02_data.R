@@ -30,13 +30,12 @@ wales_latest <- "https://phw.nhs.wales/news/public-health-wales-statement-on-nov
   as_tibble() %>%
   clean_names() 
 
-
 # Shape files for each geographic breakdown. England data is reported at the 
 # County and Unitary Authority level. However, you can't see the small London
 # boroughs in this breakdown so doing London separately too. Scotland reports
 # data at the Health Board level.
 
-shape_file <- wd$data %>%
+shape_file_england<- wd$data %>%
   paste0("Counties_and_Unitary_Authorities_April_2019_Boundaries_EW_BFE.shp") %>%
   readOGR()
 
@@ -46,6 +45,10 @@ shape_file_london <- wd$data %>%
 
 shape_file_scotland <- wd$data %>%
   paste0("SG_NHS_HealthBoards_2019.shp") %>%
+  readOGR()
+
+shape_file_wales <- wd$data %>%
+  paste0("Local_Health_Boards_December_2016_Full_Clipped_Boundaries_in_Wales.shp") %>%
   readOGR()
 
 # Update latest data -----------------------------------------------------------
@@ -89,10 +92,16 @@ if(!(total_cases_col %in% colnames(cumulative_cases_england))){
                             "Cornwall", gss_nm)) %>%
     select(gss_nm, total_cases) %>%
     set_colnames(c("gss_nm", total_cases_col)) %>%
-    left_join(cumulative_cases_england, ., by = c("gss_nm"))
+    left_join(cumulative_cases_england, ., by = c("gss_nm")) %>%
+    update_cases(force_update_england, "England")
+  
+  wd$output %>%
+    paste0("cumulative-cases-england.csv") %>%
+    write_csv(cumulative_cases_england, .)
+  
+} else {
+  message("England already updated")
 }
-
-
 
 if(!(total_cases_col %in% colnames(cumulative_cases_scotland))){
   
@@ -103,8 +112,18 @@ if(!(total_cases_col %in% colnames(cumulative_cases_scotland))){
     mutate(health_board = if_else(str_detect(health_board, "Ayr"), 
                                   "Ayrshire and Arran", health_board)) %>%
     set_colnames(c("health_board", total_cases_col)) %>%
-    left_join(cumulative_cases_scotland, ., by = "health_board")
+    left_join(cumulative_cases_scotland, ., by = "health_board") %>%
+    update_cases(force_update_scotland, "Scotland")
+  
+  wd$output %>%
+    paste0("cumulative-cases-scotland.csv") %>%
+    write_csv(cumulative_cases_scotland, .)
+  
+} else {
+  message("Scotland already updated")
+  
 }
+
 
 if(!(total_cases_col %in% colnames(cumulative_cases_wales))){
   
@@ -126,97 +145,78 @@ if(!(total_cases_col %in% colnames(cumulative_cases_wales))){
     
   }
   
-  cumulative_cases_wales <- wales_latest %>%
-    group_by(health_board) %>%
-    summarise(total_cases = sum(cumulative_cases, na.rm = TRUE)) %>%
-    filter(!(total_cases %in% c("Resident outside Wales", "To be confirmed", 
-                                "Wales"))) %>%
-    mutate(total_cases = as.numeric(total_cases)) %>%
-    set_colnames(c("health_board", total_cases_col)) %>%
-    left_join(cumulative_cases_wales, ., by = "health_board")
-}
-
-
-# Check that the data have been updated. They update at different times of day
-# I have found so could be yesterdays data.
-
-difference_in_cases <- function(x){
-  x %>%
-    select((ncol(x) -1):ncol(x)) %>%
-    set_colnames(c("yesterday", "today")) %>%
-    mutate(difference = today - yesterday) %>%
-    filter(difference != 0) %>%
-    nrow()
-}
-
-update_cases <- function(x, force_update, country){
+  # They also list new cases and cumulative cases only need cumulative
   
-  if(difference_in_cases(x) == 0){
-    warning(paste0("No new cases in ", country))
-    
-    if(force_update == FALSE){
-      warning("force_update = FALSE, discarding todays data")
-      
-      x <- x %>%
-        select(-ncol(x))
-        
-    } else {
-      warning("force_update = TRUE, keeping todays data")
-    }
-    
-  } else {
-    message(paste0("New cases found in ", country))
-  }
+  not_health_boards <- c("To be confirmed", "Resident outside Wales", "TOTAL")
   
-  return(x)
+  wales_latest <- wales_latest %>%
+    filter(!(health_board %in% not_health_boards)) %>%
+    select(-new_cases) %>%
+    set_colnames(c("health_board", total_cases_col)) 
+
+  cumulative_cases_wales <- cumulative_cases_wales %>%
+    left_join(wales_latest, by = "health_board") %>%
+    update_cases(force_update_wales, "Wales")
+  
+  # Output to keep a case record
+  
+  wd$output %>%
+    paste0("cumulative-cases-wales.csv") %>%
+    write_csv(cumulative_cases_wales, .)
+  
+} else {
+  message("Wales already updated")
+  
 }
 
+# Growths ----------------------------------------------------------------------
 
-cumulative_cases_england <- update_cases(cumulative_cases_england, 
-                                         force_update_england,
-                                         "England")
-
-cumulative_cases_scotland <- update_cases(cumulative_cases_scotland, 
-                                          force_update_scotland, "Scotland")
-
-cumulative_cases_wales <- update_cases(cumulative_cases_wales, 
-                                       force_update_wales, "Wales")
-
-# Output to keep a case record
-
-wd$output %>%
-  paste0("cumulative-cases-wales.csv") %>%
-  write_csv(cumulative_cases_wales, .)
-
-wd$output %>%
-  paste0("cumulative-cases-england.csv") %>%
-  write_csv(cumulative_cases_england, .)
-
-wd$output %>%
-  paste0("cumulative-cases-scotland.csv") %>%
-  write_csv(cumulative_cases_scotland, .)
+difference_england <- calc_difference(cumulative_cases_england, num_days_lag)
+difference_scotland <- calc_difference(cumulative_cases_scotland, num_days_lag)
+difference_wales <- calc_difference(cumulative_cases_wales, num_days_lag)
 
 # Prepare map data -------------------------------------------------------------
 
-map_data_england <- shape_file %>%
+map_data_england <- shape_file_england %>%
   broom::tidy(region= "ctyua19nm") %>%
   dplyr::left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
-  tidyr::pivot_longer(cols = starts_with("total_cases")) %>%
-  distinct(id, .keep_all = TRUE)
+  tidyr::pivot_longer(cols = starts_with("total_cases")) 
 
 map_data_london <- shape_file_london %>%
   broom::tidy(region= "NAME") %>%
   dplyr::left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
-  dplyr::filter(!is.na(gss_cd))  %>%
-  dplyr::mutate(total_cases = if_else(id %in% shape_file_london$NAME & is.na(total_cases), 
-                                      0, total_cases))
+  tidyr::pivot_longer(cols = starts_with("total_cases")) 
 
 map_data_scotland <- shape_file_scotland %>%
   broom::tidy(region= "HBName") %>%
-  dplyr::left_join(cumulative_cases_latest, by = c("id" = "health_board")) 
+  dplyr::left_join(cumulative_cases_scotland, by = c("id" = "health_board")) %>%
+  tidyr::pivot_longer(cols = starts_with("total_cases")) 
 
+# The Welsh health board names are given in full in the shape file but I dont 
+# want these in the csv files. Will be too long names for presentation purposes
 
+lhb16nm <- c("Betsi Cadwaladr University Health Board",
+             "Powys Teaching Health Board",
+             "Hywel Dda University Health Board",
+             "Abertawe Bro Morgannwg University Health Board",
+             "Cwm Taf University Health Board",
+             "Aneurin Bevan University Health Board",
+             "Cardiff and Vale University Health Board")
 
+health_board <- c("Betsi Cadwaladr",  "Powys",  "Hywel Dda", "Swansea Bay",
+                  "Cwm Taf", "Aneurin Bevan", "Cardiff and Vale")
 
+wales_lookup <- tibble(lhb16nm, health_board)
+
+cumulative_cases_wales_translated <- cumulative_cases_wales %>%
+  left_join(wales_lookup, by = "health_board") %>%
+  mutate(health_board = lhb16nm) %>%
+  select(-lhb16nm)
+  
+map_data_wales <- shape_file_wales %>%
+  tidy(region= "lhb16nm") %>%
+  left_join(cumulative_cases_wales_translated, 
+                   by = c("id" = "health_board")) %>%
+  pivot_longer(cols = starts_with("total_cases"))
 
 
