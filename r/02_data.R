@@ -21,7 +21,7 @@ scotland_latest <- "https://www.gov.scot/coronavirus-covid-19" %>%
   mutate(total_cases = as.numeric(positive_cases))%>%
   select(-positive_cases)
 
-# Scrape Wales data from 
+# Scrape Wales data from public health wales
 
 wales_latest <- "https://phw.nhs.wales/news/public-health-wales-statement-on-novel-coronavirus-outbreak/" %>%
   read_html() %>%
@@ -29,6 +29,27 @@ wales_latest <- "https://phw.nhs.wales/news/public-health-wales-statement-on-nov
   html_table(header = TRUE) %>%
   as_tibble() %>%
   clean_names() 
+
+# Population data available from a few places. For England Counties and Unitary
+# Authorities ONS. For Wales, from stats Wales. From Scotland, National Records
+# of Scotland
+
+# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
+# https://statswales.gov.wales/Catalogue/Population-and-Migration/Population/Estimates/Local-Health-Boards/populationestimates-by-lhb-age
+# https://www.nrscotland.gov.uk/statistics-and-data/statistics/statistics-by-theme/population/population-estimates/mid-year-population-estimates
+
+
+population_scotland <- wd$data %>%
+  paste0("population-data_scotland_health-board.csv") %>%
+  read_csv()
+
+population_wales <- wd$data %>%
+  paste0("population-data_wales_health-board.csv") %>%
+  read_csv()
+
+population_uk <- wd$data %>%
+  paste0("population-data_uk_administrative-areas.csv") %>%
+  read_csv()
 
 # Shape files for each geographic breakdown. England data is reported at the 
 # County and Unitary Authority level. However, you can't see the small London
@@ -177,20 +198,35 @@ difference_wales <- calc_difference(cumulative_cases_wales, num_days_lag)
 
 # Prepare map data -------------------------------------------------------------
 
+combined_pop <- population_uk %>%
+  filter(name %in% c("City of London", "Hackney")) %>%
+  select(population) %>%
+  sum()
+
+population_uk[population_uk$name == "City of London", "population"] <- combined_pop
+population_uk[population_uk$name == "Hackney", "population"] <- combined_pop
+
+
 map_data_england <- shape_file_england %>%
-  broom::tidy(region= "ctyua19nm") %>%
-  dplyr::left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
-  tidyr::pivot_longer(cols = starts_with("total_cases")) 
+  tidy(region= "ctyua19nm") %>%
+  left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
+  pivot_longer(cols = starts_with("total_cases")) %>%
+  left_join(select(population_uk, name, population), by = c("id" = "name")) %>%
+  mutate(rate = 100000 * value / population)
 
 map_data_london <- shape_file_london %>%
-  broom::tidy(region= "NAME") %>%
-  dplyr::left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
-  tidyr::pivot_longer(cols = starts_with("total_cases")) 
+  tidy(region= "NAME") %>%
+  left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
+  pivot_longer(cols = starts_with("total_cases")) %>%
+  left_join(select(population_uk, name, population), by = c("id" = "name")) %>%
+  mutate(rate = 100000 * value / population)
 
 map_data_scotland <- shape_file_scotland %>%
-  broom::tidy(region= "HBName") %>%
-  dplyr::left_join(cumulative_cases_scotland, by = c("id" = "health_board")) %>%
-  tidyr::pivot_longer(cols = starts_with("total_cases")) 
+  tidy(region= "HBName") %>%
+  left_join(cumulative_cases_scotland, by = c("id" = "health_board")) %>%
+  pivot_longer(cols = starts_with("total_cases")) %>%
+  left_join(population_scotland, by = c("id" = "health_board")) %>%
+  mutate(rate = 100000 * value / population)
 
 # The Welsh health board names are given in full in the shape file but I dont 
 # want these in the csv files. Will be too long names for presentation purposes
@@ -217,6 +253,12 @@ map_data_wales <- shape_file_wales %>%
   tidy(region= "lhb16nm") %>%
   left_join(cumulative_cases_wales_translated, 
                    by = c("id" = "health_board")) %>%
-  pivot_longer(cols = starts_with("total_cases"))
+  pivot_longer(cols = starts_with("total_cases")) %>%
+  left_join(population_wales, by = c("id" = "health_board")) %>%
+  mutate(rate = 100000 * value / population)
+
+
+
+
 
 
