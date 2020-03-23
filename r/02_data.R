@@ -21,21 +21,14 @@ scotland_latest <- "https://www.gov.scot/coronavirus-covid-19" %>%
   mutate(total_cases = as.numeric(positive_cases))%>%
   select(-positive_cases)
 
-# Scrape Wales data from public health wales
-
-wales_latest <- "https://phw.nhs.wales/news/public-health-wales-statement-on-novel-coronavirus-outbreak/" %>%
-  read_html() %>%
-  html_node(xpath = '//*[@id="news"]/div[8]/div[2]/div/section/div[1]/div/div/table') %>%
-  html_table(header = TRUE) %>%
-  as_tibble() %>%
-  clean_names() 
+# Wales data keeps being released all over the place, different links, different
+# formats. So just going to update it manually from their twitter press releases
 
 # Population data available from a few places. For England Counties and Unitary
 # Authorities ONS. For Wales, from stats Wales. From Scotland, National Records
 # of Scotland
 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
-# https://statswales.gov.wales/Catalogue/Population-and-Migration/Population/Estimates/Local-Health-Boards/populationestimates-by-lhb-age
 # https://www.nrscotland.gov.uk/statistics-and-data/statistics/statistics-by-theme/population/population-estimates/mid-year-population-estimates
 
 
@@ -91,7 +84,7 @@ cumulative_cases_wales <- wd$output %>%
 # Append
 
 total_cases_col <- "total_cases_" %>%
-   paste0(Sys.Date()) %>%
+   paste0(Sys.Date() - 1) %>%
    str_replace_all("-", "_")
 
 if(!(total_cases_col %in% colnames(cumulative_cases_england))){
@@ -145,51 +138,6 @@ if(!(total_cases_col %in% colnames(cumulative_cases_scotland))){
   
 }
 
-
-if(!(total_cases_col %in% colnames(cumulative_cases_wales))){
-  
-  # Wales data broken down by hospital now so a little cleaning required to get
-  # it by health board
-  
-  health_boards <- wales_latest %>%
-    filter(health_board != "") %>%
-    select(health_board) %>%
-    unlist()
-
-  health_board_positions <- which(wales_latest$health_board %in% health_boards)
-  
-  for(i in seq_along(1:length(health_boards))){
-    
-    wales_latest <- wales_latest %>%
-      mutate(health_board = if_else(row_number() >= health_board_positions[i],
-                                    health_boards[i], health_board))
-    
-  }
-  
-  # They also list new cases and cumulative cases only need cumulative
-  
-  not_health_boards <- c("To be confirmed", "Resident outside Wales", "TOTAL")
-  
-  wales_latest <- wales_latest %>%
-    filter(!(health_board %in% not_health_boards)) %>%
-    select(-new_cases) %>%
-    set_colnames(c("health_board", total_cases_col)) 
-
-  cumulative_cases_wales <- cumulative_cases_wales %>%
-    left_join(wales_latest, by = "health_board") %>%
-    update_cases(force_update_wales, "Wales")
-  
-  # Output to keep a case record
-  
-  wd$output %>%
-    paste0("cumulative-cases-wales.csv") %>%
-    write_csv(cumulative_cases_wales, .)
-  
-} else {
-  message("Wales already updated")
-  
-}
-
 # Growths ----------------------------------------------------------------------
 
 difference_england <- calc_difference(cumulative_cases_england, num_days_lag)
@@ -212,7 +160,8 @@ map_data_england <- shape_file_england %>%
   left_join(cumulative_cases_england, by = c("id" = "gss_nm")) %>%
   pivot_longer(cols = starts_with("total_cases")) %>%
   left_join(select(population_uk, name, population), by = c("id" = "name")) %>%
-  mutate(rate = 100000 * value / population)
+  mutate(rate = 100000 * value / population) %>%
+  filter(!is.na(rate))
 
 map_data_london <- shape_file_london %>%
   tidy(region= "NAME") %>%
@@ -257,6 +206,16 @@ map_data_wales <- shape_file_wales %>%
   left_join(population_wales, by = c("id" = "health_board")) %>%
   mutate(rate = 100000 * value / population)
 
+
+map_data_all <- bind_rows(map_data_england, map_data_scotland, map_data_wales)
+
+map_data_all_excl <-  filter(map_data_all, 
+                             !str_detect(id, "Shetland"), 
+                             !(id %in% unique(map_data_london$id)))
+
+map_data_scotland_excl <- filter(map_data_scotland, !str_detect(id, "Shetland"))
+map_data_england_excl <- filter(map_data_england, 
+                                !(id %in% unique(map_data_london$id)))
 
 
 
