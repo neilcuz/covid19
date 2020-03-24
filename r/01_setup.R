@@ -2,15 +2,16 @@
 # COVID19 ANALYSIS
 # 01_setup.R
 
-library(tidyverse)
-library(janitor)
-library(rgdal)
-library(here)
-library(broom)
-library(maptools)
-library(lubridate)
-library(rvest)
-library(magrittr)
+library(raster, warn.conflicts = FALSE)
+library(tidyverse, warn.conflicts = FALSE)
+library(janitor, warn.conflicts = FALSE)
+library(rgdal, warn.conflicts = FALSE)
+library(here, warn.conflicts = FALSE)
+library(broom, warn.conflicts = FALSE)
+library(maptools, warn.conflicts = FALSE)
+library(lubridate, warn.conflicts = FALSE)
+library(rvest, warn.conflicts = FALSE)
+library(magrittr, warn.conflicts = FALSE)
 
 wd <- list()
 wd$wd <- here::here() %>% paste0("/")

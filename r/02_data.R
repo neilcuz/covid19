@@ -65,8 +65,6 @@ shape_file_wales <- wd$data %>%
   paste0("Local_Health_Boards_December_2016_Full_Clipped_Boundaries_in_Wales.shp") %>%
   readOGR()
 
-# Update latest data -----------------------------------------------------------
-
 # Get previous data
 
 cumulative_cases_england <- wd$output %>%
@@ -80,6 +78,9 @@ cumulative_cases_scotland <- wd$output %>%
 cumulative_cases_wales <- wd$output %>%
   paste0("cumulative-cases-wales.csv") %>%
   read_csv()
+
+
+# Update latest data -----------------------------------------------------------
 
 # Append
 
@@ -138,12 +139,6 @@ if(!(total_cases_col %in% colnames(cumulative_cases_scotland))){
   
 }
 
-# Growths ----------------------------------------------------------------------
-
-difference_england <- calc_difference(cumulative_cases_england, num_days_lag)
-difference_scotland <- calc_difference(cumulative_cases_scotland, num_days_lag)
-difference_wales <- calc_difference(cumulative_cases_wales, num_days_lag)
-
 # Prepare map data -------------------------------------------------------------
 
 combined_pop <- population_uk %>%
@@ -153,7 +148,6 @@ combined_pop <- population_uk %>%
 
 population_uk[population_uk$name == "City of London", "population"] <- combined_pop
 population_uk[population_uk$name == "Hackney", "population"] <- combined_pop
-
 
 map_data_england <- shape_file_england %>%
   tidy(region= "ctyua19nm") %>%
