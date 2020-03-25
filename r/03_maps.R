@@ -21,7 +21,8 @@ map_data_all$name %>%
 
 map_data_england$name %>%
   unique() %>%
-  walk(plot_map, x = map_data_england, area = "England")
+  walk(plot_map, x = map_data_england, area = "England", 
+       folder = "maps-england")
 
 map_data_england_excl$name %>%
   unique() %>%
