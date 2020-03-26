@@ -1,13 +1,13 @@
-health_board,total_cases_2020_03_16,total_cases_2020_03_17,total_cases_2020_03_18,total_cases_2020_03_19,total_cases_2020_03_20,total_cases_2020_03_21,total_cases_2020_03_22,total_cases_2020_03_23,total_cases_2020_03_24
-Ayrshire and Arran,6,9,12,16,21,25,34,41,57
-Borders,7,7,8,9,10,11,12,12,15
-Dumfries and Galloway,1,4,6,10,13,16,18,26,31
-Fife,7,8,9,12,13,16,19,25,29
-Forth Valley,12,15,17,23,27,30,40,43,59
-Grampian,22,24,18,19,20,23,24,24,29
-Greater Glasgow and Clyde,49,57,71,91,110,130,152,183,221
-Highland,5,5,6,6,8,8,12,13,22
-Lanarkshire,21,25,33,41,49,49,58,75,87
-Lothian,30,33,35,40,44,46,59,70,88
-Shetland,15,16,24,24,24,24,24,24,24
-Tayside,20,24,27,31,34,38,47,48,57
+health_board,total_cases_2020_03_16,total_cases_2020_03_17,total_cases_2020_03_18,total_cases_2020_03_19,total_cases_2020_03_20,total_cases_2020_03_21,total_cases_2020_03_22,total_cases_2020_03_23,total_cases_2020_03_24,total_cases_2020_03_25
+Ayrshire and Arran,6,9,12,16,21,25,34,41,57,74
+Borders,7,7,8,9,10,11,12,12,15,23
+Dumfries and Galloway,1,4,6,10,13,16,18,26,31,39
+Fife,7,8,9,12,13,16,19,25,29,40
+Forth Valley,12,15,17,23,27,30,40,43,59,75
+Grampian,22,24,18,19,20,23,24,24,29,31
+Greater Glasgow and Clyde,49,57,71,91,110,130,152,183,221,258
+Highland,5,5,6,6,8,8,12,13,22,29
+Lanarkshire,21,25,33,41,49,49,58,75,87,114
+Lothian,30,33,35,40,44,46,59,70,88,111
+Shetland,15,16,24,24,24,24,24,24,24,24
+Tayside,20,24,27,31,34,38,47,48,57,76
